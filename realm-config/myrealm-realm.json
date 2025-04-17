@@ -11,6 +11,9 @@
       "redirectUris": [
         "http://localhost:8080/*"
       ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true
     }

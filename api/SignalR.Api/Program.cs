@@ -29,6 +29,19 @@ builder.Services
             NameClaimType = "preferred_username",
             RoleClaimType = "roles"
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Host.UseSerilog((context, configuration) =>
@@ -50,11 +63,11 @@ app.MapPost("/broadcast", async (
     ClaimsPrincipal user
 ) => {
     var email = user.FindFirstValue(ClaimTypes.Email);
-    await context.Clients.All.ReceiveMessage($"{email} says: {payload.Message}");
+    await context.Clients.All.ReceiveMessage($"{email} boradcasts: {payload.Message}");
     return Results.NoContent();
 }).RequireAuthorization();
 
-app.MapHub<ShoppingHub>("/hub");
+app.MapHub<ShoppingHub>("/hub").RequireAuthorization();
 
 app.Run();
 
@@ -62,23 +75,23 @@ public class ShoppingHub(ILogger<ShoppingHub> logger) : Hub<IShoppingClient>
 {
     public override async Task OnConnectedAsync()
     {
-        logger.LogInformation("{ConntectionId} connected", Context.ConnectionId);
-        // await Clients.All.SendAsync("ReceiveMessage", $"{Context.ConnectionId} connected"); 
-        await Clients.All.ReceiveMessage($"{Context.ConnectionId} connected");
+        var email = Context.User?.FindFirstValue(ClaimTypes.Email);
+        logger.LogInformation("{Email} connected", email);
+        await Clients.All.ReceiveMessage($"{email} connected");
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        logger.LogInformation("{ConntectionId} disconnected", Context.ConnectionId);
-        // await Clients.All.SendAsync("ReceiveMessage", $"{Context.ConnectionId} disconnected");
-        await Clients.All.ReceiveMessage($"{Context.ConnectionId} disconnected");
+        var email = Context.User?.FindFirstValue(ClaimTypes.Email);
+        logger.LogInformation("{Email} disconnected", email);
+        await Clients.All.ReceiveMessage($"{email} disconnected");
     }
 
     public async Task SendMessage(string message)
     {
-        logger.LogInformation("{ConntectionId} says: {Message}", Context.ConnectionId, message);
-        // await Clients.All.SendAsync("ReceiveMessage", $"{Context.ConnectionId} says: {message}");
-        await Clients.All.ReceiveMessage($"{Context.ConnectionId} says: {message}");
+        var email = Context.User?.FindFirstValue(ClaimTypes.Email);
+        logger.LogInformation("{Email} says: {Message}", email, message);
+        await Clients.All.ReceiveMessage($"{email} says: {message}");
     }
 }
 
@@ -89,5 +102,5 @@ public interface IShoppingClient
 
 public class BroadcastMessage
 {
-    public string? Message { get; set; }
+    public string Message { get; set; }
 }

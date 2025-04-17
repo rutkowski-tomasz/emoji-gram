@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   keycloak:
     image: quay.io/keycloak/keycloak:26.2
@@ -28,6 +30,44 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./api
+    container_name: api-1
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80
+      Keycloak__Authority: http://keycloak:8080/realms/myrealm
+      Keycloak__Audience: account
+      ConnectionStrings__Redis: redis:6379
+    ports:
+      - "8001:80"
+    depends_on:
+      - keycloak
+      - postgres
+      - redis
+
+  api2:
+    build: ./api
+    container_name: api-2
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80
+      Keycloak__Authority: http://keycloak:8080/realms/myrealm
+      Keycloak__Audience: account
+      ConnectionStrings__Redis: redis:6379
+    ports:
+      - "8002:80"
+    depends_on:
+      - keycloak
+      - postgres
+      - redis
 
 volumes:
   postgres_data:

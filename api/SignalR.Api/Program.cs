@@ -14,7 +14,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
         .AllowAnyMethod()
         .AllowCredentials()
 ));
-builder.Services.AddSignalR();
+builder.Services.AddSignalR().AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis"));
 
 builder.Services.AddAuthorization();
 
@@ -27,6 +27,10 @@ builder.Services
         options.RequireHttpsMetadata = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Keycloak:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Keycloak:Audience"],
             NameClaimType = "preferred_username",
             RoleClaimType = "roles"
         };

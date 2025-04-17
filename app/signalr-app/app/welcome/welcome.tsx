@@ -11,6 +11,7 @@ export function Welcome() {
   const [whisperMessage, setWhisperMessage] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [whisperError, setWhisperError] = useState<string | null>(null);
 
   const KeyCloak_HostAddress = "http://localhost:8080";
   const realm = "myrealm";
@@ -53,8 +54,8 @@ export function Welcome() {
   useEffect(() => {
     if (isLoggedIn && accessToken) {
       const connect = new signalR.HubConnectionBuilder()
-        .withUrl("http://localhost:5149/hub", {
-          accessTokenFactory: () => accessToken
+        .withUrl("http://localhost:8001/hub", {
+          accessTokenFactory: () => accessToken,
         })
         .withAutomaticReconnect()
         .build();
@@ -65,6 +66,11 @@ export function Welcome() {
 
       connect.on("ReceiveWhisper", (whisperedMessage: string) => {
         setMessages((prevMessages) => [...prevMessages, `Private: ${whisperedMessage}`]);
+      });
+
+      connect.on("WhisperError", (errorMessage: string) => {
+        setWhisperError(errorMessage);
+        setTimeout(() => setWhisperError(null), 3000);
       });
 
       connect
@@ -98,12 +104,14 @@ export function Welcome() {
 
   const sendWhisper = async () => {
     if (connection && whisperMessage.trim() && whisperRecipient.trim() && isLoggedIn) {
+      setWhisperError(null);
       try {
         await connection.invoke("SendWhisper", whisperRecipient, whisperMessage);
         setWhisperMessage("");
         setWhisperRecipient("");
       } catch (err) {
         console.error("Error sending private message:", err);
+        setWhisperError("Failed to send whisper.");
       }
     } else if (!isLoggedIn) {
       alert("Please log in to send private messages.");
@@ -190,6 +198,7 @@ export function Welcome() {
           </div>
           <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
             <h2>Whisper</h2>
+            {whisperError && <div className="text-red-500">{whisperError}</div>}
             <div className="flex items-center gap-4">
               <input
                 type="email"

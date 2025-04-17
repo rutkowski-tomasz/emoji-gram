@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Mvc; 
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -96,6 +96,10 @@ public class ShoppingHub(ILogger<ShoppingHub> logger) : Hub<IShoppingClient>
         if (UserConnections.TryGetValue(email, out var connectionsIds))
         {
             connectionsIds.Remove(Context.ConnectionId);
+            if (connectionsIds.Count == 0)
+            {
+                UserConnections.TryRemove(email, out _);
+            }
         }
         logger.LogInformation("{Email} disconnected", email);
         await Clients.All.ReceiveMessage($"{email} disconnected");
@@ -121,6 +125,10 @@ public class ShoppingHub(ILogger<ShoppingHub> logger) : Hub<IShoppingClient>
 
             await Task.WhenAll(sendTasks);
         }
+        else
+        {
+            await Clients.Caller.WhisperError($"User with email '{receiverEmail}' not found.");
+        }
     }
 }
 
@@ -128,6 +136,7 @@ public interface IShoppingClient
 {
     Task ReceiveMessage(string message);
     Task ReceiveWhisper(string message);
+    Task WhisperError(string errorMessage);
 }
 
 public class BroadcastMessage

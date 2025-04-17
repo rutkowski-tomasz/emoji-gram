@@ -7,10 +7,12 @@ export function Welcome() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [message, setMessage] = useState("");
+  const [whisperRecipient, setWhisperRecipient] = useState("");
+  const [whisperMessage, setWhisperMessage] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const KeyCloak_HostAddress = "http://localhost:8080"; // Replace with your Keycloak URL
+  const KeyCloak_HostAddress = "http://localhost:8080";
   const realm = "myrealm";
   const clientId = "myclient";
   const username = "testuser";
@@ -52,16 +54,17 @@ export function Welcome() {
     if (isLoggedIn && accessToken) {
       const connect = new signalR.HubConnectionBuilder()
         .withUrl("http://localhost:5149/hub", {
-          accessTokenFactory: () => accessToken,
-          // headers: {
-          //   Authorization: `Bearer ${accessToken}`,
-          // },
+          accessTokenFactory: () => accessToken
         })
         .withAutomaticReconnect()
         .build();
 
       connect.on("ReceiveMessage", (receivedMessage: string) => {
         setMessages((prevMessages) => [...prevMessages, receivedMessage]);
+      });
+
+      connect.on("ReceiveWhisper", (whisperedMessage: string) => {
+        setMessages((prevMessages) => [...prevMessages, `Private: ${whisperedMessage}`]);
       });
 
       connect
@@ -90,6 +93,22 @@ export function Welcome() {
       }
     } else if (!isLoggedIn) {
       alert("Please log in to send messages.");
+    }
+  };
+
+  const sendWhisper = async () => {
+    if (connection && whisperMessage.trim() && whisperRecipient.trim() && isLoggedIn) {
+      try {
+        await connection.invoke("SendWhisper", whisperRecipient, whisperMessage);
+        setWhisperMessage("");
+        setWhisperRecipient("");
+      } catch (err) {
+        console.error("Error sending private message:", err);
+      }
+    } else if (!isLoggedIn) {
+      alert("Please log in to send private messages.");
+    } else if (!whisperRecipient.trim()) {
+      alert("Please enter a recipient email.");
     }
   };
 
@@ -168,6 +187,33 @@ export function Welcome() {
             >
               Send
             </button>
+          </div>
+          <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
+            <h2>Whisper</h2>
+            <div className="flex items-center gap-4">
+              <input
+                type="email"
+                value={whisperRecipient}
+                onChange={(e) => setWhisperRecipient(e.target.value)}
+                placeholder="Recipient Email"
+                className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <input
+                type="text"
+                value={whisperMessage}
+                onChange={(e) => setWhisperMessage(e.target.value)}
+                placeholder="Your private message"
+                className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
+              />
+              <button
+                onClick={sendWhisper}
+                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+              >
+                Whisper
+              </button>
+            </div>
           </div>
         </div>
       </div>

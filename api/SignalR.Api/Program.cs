@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,10 +29,14 @@ builder.Services
         };
     });
 
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.WriteTo.Console()
+);
+
 var app = builder.Build();
 
+app.UseSerilogRequestLogging();
 app.UseCors();
-
 app.UseAuthentication();
 app.UseAuthorization();
 

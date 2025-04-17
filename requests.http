@@ -1,0 +1,44 @@
+@KeyCloak_HostAddress = http://localhost:8080
+@Api_HostAddress = http://localhost:5149
+
+
+# @name adminToken
+POST {{KeyCloak_HostAddress}}/realms/master/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=admin-cli&username=admin&password=admin
+
+### 
+
+# @name register
+POST {{KeyCloak_HostAddress}}/admin/realms/myrealm/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken.response.body.access_token}}
+
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "enabled": true,
+  "credentials": [
+    {
+      "type": "password",
+      "value": "password",
+      "temporary": false
+    }
+  ]
+}
+
+###
+
+# @name login
+POST {{KeyCloak_HostAddress}}/realms/myrealm/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=myclient&username=testuser&password=password
+
+###
+
+# @name broadcast
+POST {{Api_HostAddress}}/broadcast
+Authorization: Bearer {{login.response.body.access_token}}
+

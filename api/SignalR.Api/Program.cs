@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,16 +12,35 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 ));
 builder.Services.AddSignalR();
 
+builder.Services.AddAuthorization();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["Keycloak:Authority"];
+        options.Audience = builder.Configuration["Keycloak:Audience"];
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            NameClaimType = "preferred_username",
+            RoleClaimType = "roles"
+        };
+    });
+
 var app = builder.Build();
 
 app.UseCors();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => TypedResults.Ok());
 
 app.MapPost("/broadcast", async (IHubContext<ShoppingHub, IShoppingClient> context) => {
     await context.Clients.All.ReceiveMessage("Hello from SignalR");
     return Results.NoContent();
-});
+}).RequireAuthorization();
 
 app.MapHub<ShoppingHub>("/hub");
 

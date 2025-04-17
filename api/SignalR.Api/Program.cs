@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc; 
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,8 +44,13 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => TypedResults.Ok());
 
-app.MapPost("/broadcast", async (IHubContext<ShoppingHub, IShoppingClient> context) => {
-    await context.Clients.All.ReceiveMessage("Hello from SignalR");
+app.MapPost("/broadcast", async (
+    IHubContext<ShoppingHub, IShoppingClient> context,
+    [FromBody] BroadcastMessage payload,
+    ClaimsPrincipal user
+) => {
+    var email = user.FindFirstValue(ClaimTypes.Email);
+    await context.Clients.All.ReceiveMessage($"{email} says: {payload.Message}");
     return Results.NoContent();
 }).RequireAuthorization();
 
@@ -78,4 +85,9 @@ public class ShoppingHub(ILogger<ShoppingHub> logger) : Hub<IShoppingClient>
 public interface IShoppingClient
 {
     Task ReceiveMessage(string message);
+}
+
+public class BroadcastMessage
+{
+    public string? Message { get; set; }
 }

@@ -40,5 +40,9 @@ grant_type=password&client_id=myclient&username=testuser&password=password
 
 # @name broadcast
 POST {{Api_HostAddress}}/broadcast
+Content-Type: application/json
 Authorization: Bearer {{login.response.body.access_token}}
 
+{
+  "message": "Hello world"
+}

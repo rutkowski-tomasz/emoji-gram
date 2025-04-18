@@ -46,3 +46,9 @@ Authorization: Bearer {{login.response.body.access_token}}
 {
   "message": "🧑🏻‍🚀"
 }
+
+###
+
+# @name history
+GET {{Api_HostAddress}}/history
+Authorization: Bearer {{login.response.body.access_token}}

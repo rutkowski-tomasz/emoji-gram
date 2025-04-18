@@ -74,5 +74,5 @@ public interface IChatHubClient
 {
     Task ReceiveMessage(string message);
     Task ReceiveWhisper(string message);
-    Task WhisperError(string errorMessage);
+    Task ReceiveError(string errorMessage);
 }

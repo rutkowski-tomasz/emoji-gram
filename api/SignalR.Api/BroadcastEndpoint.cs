@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
+using Serilog;
+using System.Threading.Tasks;
 
 namespace SignalR.Api;
 
@@ -13,7 +15,8 @@ public static class BroadcastEndpoints
         app.MapPost("/broadcast", async (
             IHubContext<ChatHub, IChatHubClient> context,
             [FromBody] BroadcastRequest request,
-            ClaimsPrincipal user
+            ClaimsPrincipal user,
+            ApiDbContext dbContext
         ) =>
         {
             if (!EmojiValidator.IsValidEmojiMessage(request.Message))
@@ -21,8 +24,19 @@ public static class BroadcastEndpoints
                 return Results.BadRequest("Message must contain only emojis and whitespace.");
             }
 
+            var userId = user.GetUserId();
             var email = user.FindFirstValue(ClaimTypes.Email);
             await context.Clients.All.ReceiveMessage($"{email} broadcasts: {request.Message}");
+
+            var message = new Message
+            {
+                SenderUserId = userId,
+                Content = request.Message,
+                SentAtUtc = DateTime.UtcNow
+            };
+            dbContext.Messages.Add(message);
+            await dbContext.SaveChangesAsync();
+
             return Results.NoContent();
         }).RequireAuthorization();
     }

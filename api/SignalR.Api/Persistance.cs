@@ -1,0 +1,43 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using System;
+using System.ComponentModel.DataAnnotations;
+
+namespace SignalR.Api;
+
+public class Message
+{
+    [Key]
+    public Guid Id { get; set; }
+    public string Content { get; set; } = string.Empty;
+    public Guid SenderUserId { get; set; }
+    public Guid? ReceiverUserId { get; set; }
+    public DateTime SentAtUtc { get; set; }
+}
+
+public class MessageConfiguration : IEntityTypeConfiguration<Message>
+{
+    public void Configure(EntityTypeBuilder<Message> builder)
+    {
+        builder.HasIndex(m => m.SentAtUtc);
+    }
+}
+
+public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(options)
+{
+    public DbSet<Message> Messages { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfiguration(new MessageConfiguration());
+    }
+}
+
+public static class EntityFrameworkExtensions
+{
+    public static IServiceCollection AddDbContext(this IServiceCollection services, string connectionString)
+    {
+        services.AddDbContext<ApiDbContext>(options => options.UseNpgsql(connectionString));
+        return services;
+    }
+}

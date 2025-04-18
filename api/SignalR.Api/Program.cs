@@ -14,6 +14,8 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 ));
 builder.Services.AddSignalR().AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")!);
 
+builder.Services.AddDbContext(builder.Configuration.GetConnectionString("Postgres")!);
+
 builder.Services.AddAuthorization();
 
 builder.Services
@@ -61,6 +63,7 @@ app.UseAuthorization();
 app.MapGet("/health", () => TypedResults.Ok());
 
 app.MapBroadcastEndpoints();
+app.MapHistoryEndpoints();
 
 app.MapHub<ChatHub>("/hub").RequireAuthorization();
 

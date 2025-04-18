@@ -28,8 +28,16 @@ npm start
 ## 📤 Dependecies
 
 ```sh
-docker-compose -f compose.yml up keycloak postgres redis -d # Start only dependencies
+docker-compose -f compose.yml up keycloak postgres-keycloak postgres-api redis -d # Start only dependencies
 docker-compose -f compose.yml up --build -d # Start all dependencies + app + api
+```
+
+## 🔄 Migrations
+
+```sh
+dotnet tool install --global dotnet-ef
+dotnet ef migrations add InitialCreate
+dotnet ef database update
 ```
 
 ## 🧑🏻‍🚀 Testing
@@ -50,3 +58,4 @@ docker-compose -f compose.yml up --build -d # Start all dependencies + app + api
 ```json
 {"arguments":["test@example.com","whisper to user 1"],"invocationId":"0","target":"SendWhisper","type":1}
 ```
+

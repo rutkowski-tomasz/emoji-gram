@@ -1,5 +1,5 @@
 @KeyCloak_HostAddress = http://localhost:8080
-@Api_HostAddress = http://localhost:5149
+@Api_HostAddress = http://localhost:8001
 
 
 # @name adminToken
@@ -44,5 +44,5 @@ Content-Type: application/json
 Authorization: Bearer {{login.response.body.access_token}}
 
 {
-  "message": "Hello world"
+  "message": "🧑🏻‍🚀"
 }

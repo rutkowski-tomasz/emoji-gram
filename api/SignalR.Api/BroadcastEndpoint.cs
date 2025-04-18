@@ -12,17 +12,23 @@ public static class BroadcastEndpoints
     {
         app.MapPost("/broadcast", async (
             IHubContext<ChatHub, IChatHubClient> context,
-            [FromBody] BroadcastMessage payload,
+            [FromBody] BroadcastRequest request,
             ClaimsPrincipal user
-        ) => {
+        ) =>
+        {
+            if (!EmojiValidator.IsValidEmojiMessage(request.Message))
+            {
+                return Results.BadRequest("Message must contain only emojis and whitespace.");
+            }
+
             var email = user.FindFirstValue(ClaimTypes.Email);
-            await context.Clients.All.ReceiveMessage($"{email} broadcasts: {payload.Message}");
+            await context.Clients.All.ReceiveMessage($"{email} broadcasts: {request.Message}");
             return Results.NoContent();
         }).RequireAuthorization();
     }
 }
 
-public class BroadcastMessage
+public class BroadcastRequest
 {
     public string Message { get; set; } = string.Empty;
 }

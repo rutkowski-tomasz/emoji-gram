@@ -35,6 +35,11 @@ public class ChatHub(ILogger<ChatHub> logger) : Hub<IChatHubClient>
 
     public async Task SendMessage(string message)
     {
+        if (!EmojiValidator.IsValidEmojiMessage(message))
+        {
+            await Clients.Caller.ReceiveError("Server: Message must contain only emojis and whitespace.");
+            return;
+        }
         var email = Context.User?.FindFirstValue(ClaimTypes.Email);
         logger.LogInformation("{Email} says: {Message}", email, message);
         await Clients.All.ReceiveMessage($"{email} says: {message}");
@@ -42,6 +47,11 @@ public class ChatHub(ILogger<ChatHub> logger) : Hub<IChatHubClient>
 
     public async Task SendWhisper(string receiverEmail, string message)
     {
+        if (!EmojiValidator.IsValidEmojiMessage(message))
+        {
+            await Clients.Caller.ReceiveError("Server: Whisper must contain only emojis and whitespace.");
+            return;
+        }
         var email = Context.User?.FindFirstValue(ClaimTypes.Email)
             ?? throw new ArgumentNullException(nameof(ClaimTypes.Email), "Email claim not found in the user context.");
         logger.LogInformation("{SenderEmail} whispers to {ReceiverEmail}: {Message}", email, receiverEmail, message);
@@ -55,7 +65,7 @@ public class ChatHub(ILogger<ChatHub> logger) : Hub<IChatHubClient>
         }
         else
         {
-            await Clients.Caller.WhisperError($"User with email '{receiverEmail}' not found.");
+            await Clients.Caller.ReceiveError($"User with email '{receiverEmail}' not found.");
         }
     }
 }

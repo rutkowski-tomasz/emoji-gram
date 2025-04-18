@@ -69,5 +69,15 @@ services:
       - postgres
       - redis
 
+  app:
+    build:
+      context: ./app/signalr-app
+      dockerfile: Dockerfile
+    container_name: app
+    ports:
+      - "5173:3000"
+    depends_on:
+      - api
+
 volumes:
   postgres_data:

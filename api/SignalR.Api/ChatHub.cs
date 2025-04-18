@@ -8,6 +8,7 @@ namespace SignalR.Api;
 public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<IChatHubClient>
 {
     private static readonly ConcurrentDictionary<Guid, HashSet<string>> UserConnections = new();
+    private static readonly ConcurrentDictionary<string, Guid> UsernameToId = new();
 
     public override async Task OnConnectedAsync()
     {
@@ -15,6 +16,7 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         var preferredUsername = Context.User.GetUsername();
 
         UserConnections.GetOrAdd(userId, []).Add(Context.ConnectionId);
+        UsernameToId.TryAdd(preferredUsername, userId);
         logger.LogInformation("{PreferredUsername} ({UserId}) connected", preferredUsername, userId);
 
         var joinMessage = new Message { Content = $"{preferredUsername} connected", SentAtUtc = DateTime.UtcNow };
@@ -37,6 +39,7 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
                 UserConnections.TryRemove(userId, out _);
             }
         }
+        UsernameToId.TryRemove(preferredUsername, out _);
         logger.LogInformation("{PreferredUsername} ({UserId}) disconnected", preferredUsername, userId);
 
         var disconnectMessage = new Message { Content = $"{preferredUsername} disconnected", SentAtUtc = DateTime.UtcNow };
@@ -69,8 +72,9 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         await dbContext.SaveChangesAsync();
     }
 
-    public async Task SendWhisper(Guid receiverUserId, string message)
+    public async Task SendWhisper(string receiverUsername, string message)
     {
+        logger.LogInformation("{ReceiverUsername} {Message}", receiverUsername, message);
         if (!EmojiValidator.IsValidEmojiMessage(message))
         {
             await Clients.Caller.ReceiveError("Server: Whisper must contain only emojis and whitespace.");
@@ -78,10 +82,11 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         }
         var senderUserId = Context.User.GetUserId();
         var senderUsername = Context.User.GetUsername();
+            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUsername} (): {Message}", senderUsername, senderUserId, receiverUsername, message);
 
-        if (UserConnections.ContainsKey(receiverUserId))
+        if (UsernameToId.TryGetValue(receiverUsername, out var receiverUserId))
         {
-            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUserId}: {Message}", senderUsername, senderUserId, receiverUserId, message);
+            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUsername} ({ReceiverUserId}): {Message}", senderUsername, senderUserId, receiverUsername, receiverUserId, message);
 
             var whisperMessage = new Message
             {
@@ -104,7 +109,7 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         }
         else
         {
-            await Clients.Caller.ReceiveError($"User with ID '{receiverUserId}' not found.");
+            await Clients.Caller.ReceiveError($"User with username '{receiverUsername}' not found.");
         }
     }
 }

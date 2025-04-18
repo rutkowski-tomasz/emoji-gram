@@ -10,19 +10,39 @@ grant_type=password&client_id=admin-cli&username=admin&password=admin
 
 ### 
 
-# @name register
+# @name register_user1
 POST {{KeyCloak_HostAddress}}/admin/realms/myrealm/users
 Content-Type: application/json
 Authorization: Bearer {{adminToken.response.body.access_token}}
 
 {
-  "username": "testuser",
-  "email": "test@example.com",
+  "username": "user1",
+  "email": "user1@example.com",
   "enabled": true,
   "credentials": [
     {
-      "type": "password",
-      "value": "password",
+      "type": "user1",
+      "value": "user1",
+      "temporary": false
+    }
+  ]
+}
+
+### 
+
+# @name register_user2
+POST {{KeyCloak_HostAddress}}/admin/realms/myrealm/users
+Content-Type: application/json
+Authorization: Bearer {{adminToken.response.body.access_token}}
+
+{
+  "username": "user2",
+  "email": "user2@example.com",
+  "enabled": true,
+  "credentials": [
+    {
+      "type": "user2",
+      "value": "user2",
       "temporary": false
     }
   ]
@@ -34,7 +54,7 @@ Authorization: Bearer {{adminToken.response.body.access_token}}
 POST {{KeyCloak_HostAddress}}/realms/myrealm/protocol/openid-connect/token
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=password&client_id=myclient&username=testuser&password=password
+grant_type=password&client_id=myclient&username=user1&password=user1
 
 ###
 

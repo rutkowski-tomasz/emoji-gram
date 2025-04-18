@@ -1,36 +1,49 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace SignalR.Api;
 
-public class ChatHub(ILogger<ChatHub> logger) : Hub<IChatHubClient>
+public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<IChatHubClient>
 {
-    private static readonly ConcurrentDictionary<string, HashSet<string>> UserConnections = new();
+    private static readonly ConcurrentDictionary<Guid, HashSet<string>> UserConnections = new();
 
     public override async Task OnConnectedAsync()
     {
-        var email = Context.User?.FindFirstValue(ClaimTypes.Email)
-            ?? throw new ArgumentNullException(nameof(ClaimTypes.Email), "Email claim not found in the user context.");
-        UserConnections.GetOrAdd(email, []).Add(Context.ConnectionId);
-        logger.LogInformation("{Email} connected", email);
-        await Clients.All.ReceiveMessage($"{email} connected");
+        var userId = Context.User.GetUserId();
+        var preferredUsername = Context.User.GetUsername();
+
+        UserConnections.GetOrAdd(userId, []).Add(Context.ConnectionId);
+        logger.LogInformation("{PreferredUsername} ({UserId}) connected", preferredUsername, userId);
+
+        var joinMessage = new Message { Content = $"{preferredUsername} connected", SentAtUtc = DateTime.UtcNow };
+        dbContext.Messages.Add(joinMessage);
+        await dbContext.SaveChangesAsync();
+
+        await Clients.All.ReceiveMessage($"{preferredUsername} connected");
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var email = Context.User?.FindFirstValue(ClaimTypes.Email)
-            ?? throw new ArgumentNullException(nameof(ClaimTypes.Email), "Email claim not found in the user context.");
-        if (UserConnections.TryGetValue(email, out var connectionsIds))
+        var userId = Context.User.GetUserId();
+        var preferredUsername = Context.User.GetUsername();
+
+        if (UserConnections.TryGetValue(userId, out var connectionsIds))
         {
             connectionsIds.Remove(Context.ConnectionId);
             if (connectionsIds.Count == 0)
             {
-                UserConnections.TryRemove(email, out _);
+                UserConnections.TryRemove(userId, out _);
             }
         }
-        logger.LogInformation("{Email} disconnected", email);
-        await Clients.All.ReceiveMessage($"{email} disconnected");
+        logger.LogInformation("{PreferredUsername} ({UserId}) disconnected", preferredUsername, userId);
+
+        var disconnectMessage = new Message { Content = $"{preferredUsername} disconnected", SentAtUtc = DateTime.UtcNow };
+        dbContext.Messages.Add(disconnectMessage);
+        await dbContext.SaveChangesAsync();
+
+        await Clients.All.ReceiveMessage($"{preferredUsername} disconnected");
     }
 
     public async Task SendMessage(string message)
@@ -40,32 +53,58 @@ public class ChatHub(ILogger<ChatHub> logger) : Hub<IChatHubClient>
             await Clients.Caller.ReceiveError("Server: Message must contain only emojis and whitespace.");
             return;
         }
-        var email = Context.User?.FindFirstValue(ClaimTypes.Email);
-        logger.LogInformation("{Email} says: {Message}", email, message);
-        await Clients.All.ReceiveMessage($"{email} says: {message}");
+        var senderUserId = Context.User.GetUserId();
+        var preferredUsername = Context.User.GetUsername();
+        logger.LogInformation("{PreferredUsername} sent {Message}", preferredUsername, senderUserId, message);
+        await Clients.All.ReceiveMessage($"{preferredUsername}: {message}");
+
+        var newMessage = new Message
+        {
+            SenderUserId = senderUserId,
+            SenderUsername = preferredUsername,
+            Content = message,
+            SentAtUtc = DateTime.UtcNow
+        };
+        dbContext.Messages.Add(newMessage);
+        await dbContext.SaveChangesAsync();
     }
 
-    public async Task SendWhisper(string receiverEmail, string message)
+    public async Task SendWhisper(Guid receiverUserId, string message)
     {
         if (!EmojiValidator.IsValidEmojiMessage(message))
         {
             await Clients.Caller.ReceiveError("Server: Whisper must contain only emojis and whitespace.");
             return;
         }
-        var email = Context.User?.FindFirstValue(ClaimTypes.Email)
-            ?? throw new ArgumentNullException(nameof(ClaimTypes.Email), "Email claim not found in the user context.");
-        logger.LogInformation("{SenderEmail} whispers to {ReceiverEmail}: {Message}", email, receiverEmail, message);
+        var senderUserId = Context.User.GetUserId();
+        var senderUsername = Context.User.GetUsername();
 
-        if (UserConnections.TryGetValue(receiverEmail, out var connectionsIds))
+        if (UserConnections.ContainsKey(receiverUserId))
         {
-            var sendTasks = connectionsIds
-                .Select(connectionId => Clients.Client(connectionId).ReceiveWhisper($"{email} whispers: {message}"));
+            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUserId}: {Message}", senderUsername, senderUserId, receiverUserId, message);
 
-            await Task.WhenAll(sendTasks);
+            var whisperMessage = new Message
+            {
+                SenderUserId = senderUserId,
+                SenderUsername = senderUsername,
+                ReceiverUserId = receiverUserId,
+                Content = message,
+                SentAtUtc = DateTime.UtcNow
+            };
+            dbContext.Messages.Add(whisperMessage);
+            await dbContext.SaveChangesAsync();
+
+            if (UserConnections.TryGetValue(receiverUserId, out var connectionsIds))
+            {
+                var sendTasks = connectionsIds
+                    .Select(connectionId => Clients.Client(connectionId).ReceiveWhisper($"{senderUsername} whispers: {message}"));
+
+                await Task.WhenAll(sendTasks);
+            }
         }
         else
         {
-            await Clients.Caller.ReceiveError($"User with email '{receiverEmail}' not found.");
+            await Clients.Caller.ReceiveError($"User with ID '{receiverUserId}' not found.");
         }
     }
 }

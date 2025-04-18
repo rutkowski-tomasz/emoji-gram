@@ -15,4 +15,15 @@ public static class ClaimsPrincipalExtensions
 
         throw new InvalidOperationException("User ID claim not found or is not a valid GUID.");
     }
+
+    public static string GetUsername(this ClaimsPrincipal principal)
+    {
+        var usernameClaim = principal.FindFirst("preferred_username");
+        if (usernameClaim != null)
+        {
+            return usernameClaim.Value;
+        }
+
+        throw new InvalidOperationException("Username claim not found.");
+    }
 }

@@ -25,12 +25,13 @@ public static class BroadcastEndpoints
             }
 
             var userId = user.GetUserId();
-            var email = user.FindFirstValue(ClaimTypes.Email);
-            await context.Clients.All.ReceiveMessage($"{email} broadcasts: {request.Message}");
+            var username = user.GetUsername();
+            await context.Clients.All.ReceiveMessage($"{username}: {request.Message}");
 
             var message = new Message
             {
                 SenderUserId = userId,
+                SenderUsername = username,
                 Content = request.Message,
                 SentAtUtc = DateTime.UtcNow
             };

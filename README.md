@@ -9,6 +9,7 @@ Express yourself in real-time with only emojis! EmojiGram is a platform for inst
 * **🛡️ WebSocket Authorization:** Ensures secure connections using JWT tokens obtained from Keycloak for authorized connections.
 * **📈 Scalability:** Architected with horizontal scaling in mind, utilizing a Redis backplane for SignalR to handle increased traffic.
 * **🐳 Containerization:** Simplifies setup and deployment through full containerization with Docker and Docker Compose for all components and dependencies.
+* **📨 Requests**: Includes a set of requests for the API, demonstrating the functionality of the platform.
 
 ## 💻 Development
 
@@ -24,9 +25,28 @@ npm install
 npm start
 ```
 
-## Dependecies
+## 📤 Dependecies
 
 ```sh
 docker-compose -f compose.yml up keycloak postgres redis -d # Start only dependencies
 docker-compose -f compose.yml up --build -d # Start all dependencies + app + api
+```
+
+## 🧑🏻‍🚀 Testing
+
+**Note**: There is a termination character with ASCII code `0X1E` at the end of each WS message.
+
+🤝 Handshake
+```json
+{"protocol":"json","version":1}
+```
+
+💬 SendMessage
+```json
+{"arguments":["message from user 2"],"invocationId":"0","target":"SendMessage","type":1}
+```
+
+🤫 Whisper
+```json
+{"arguments":["test@example.com","whisper to user 1"],"invocationId":"0","target":"SendWhisper","type":1}
 ```

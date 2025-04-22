@@ -24,12 +24,12 @@ export default function SignIn() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-md space-y-8 rounded-lg border p-6 shadow-lg">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Chat App</h1>
+          <h1 className="text-2xl font-bold">EmojiGram</h1>
           <h2 className="mt-2 text-gray-600">Sign in to your account</h2>
         </div>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username" className="pb-2">Username</Label>
             <Input
               id="username"
               type="text"
@@ -39,7 +39,7 @@ export default function SignIn() {
             />
           </div>
           <div>
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className="pb-2">Password</Label>
             <Input
               id="password"
               type="password"

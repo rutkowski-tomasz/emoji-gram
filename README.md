@@ -1,6 +1,10 @@
 # 😜 EmojiGram: Real-time Emoji Messaging
 
+Portfolio project for learning SignalR and Keycloak.
+
 Express yourself in real-time with only emojis! EmojiGram is a platform for instant communication, offering both public and private emoji-only messaging, secured with robust authentication and designed for scalability.
+
+![Screenshot of EmojiGram](https://github.com/rutkowski-tomasz/emoji-gram/blob/main/screenshot.png?raw=true)
 
 ## ⚙️ Key Mechanisms Demonstrated
 

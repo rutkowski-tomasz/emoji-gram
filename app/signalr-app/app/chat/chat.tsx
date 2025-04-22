@@ -175,51 +175,55 @@ export function Chat() {
   };
 
   return (
-    <main className="fixed top-0 left-0 w-full h-full flex flex-col justify-between items-center bg-gray-100 dark:bg-gray-900">
+    <main className="fixed top-0 left-0 w-full h-screen flex flex-col bg-gray-100 dark:bg-gray-900">
       {accessToken && (
         <>
-          <ScrollArea className="w-full h-full p-4" ref={scrollAreaRef}>
-            <ul className="space-y-2">
-              {messages.map((msg) => (
-                <Message
-                  key={msg.id}
-                  msg={msg}
-                  loginUsername={accessToken?.split('.')[0]}
-                  onUsernameClick={handleUsernameClick}
+          <div className="relative w-full flex-1 overflow-hidden">
+            <Button
+              onClick={logout}
+              className="absolute top-4 right-4 z-10"
+              variant="outline"
+              size="sm"
+            >
+              Sign Out
+            </Button>
+            <ScrollArea className="w-full h-full p-4" ref={scrollAreaRef}>
+              <ul className="space-y-2">
+                {messages.map((msg) => (
+                  <Message
+                    key={msg.id}
+                    msg={msg}
+                    loginUsername={accessToken?.split('.')[0]}
+                    onUsernameClick={handleUsernameClick}
+                  />
+                ))}
+                <div ref={messagesEndRef} /> {/* Empty div at the end to scroll to */}
+              </ul>
+            </ScrollArea>
+          </div>
+          <div className="w-full max-w-full py-4 px-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            <div className="max-w-[500px] mx-auto space-y-2">
+              {selectedRecipient && (
+                <div className="flex items-center">
+                  <span>Whispering to: {selectedRecipient}</span>
+                  <Button variant="secondary" size="sm" onClick={clearSelectedRecipient} className="ml-2">
+                    x
+                  </Button>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  ref={messageInputRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyPress={handleEnterPress}
+                  placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
                 />
-              ))}
-              <div ref={messagesEndRef} /> {/* Empty div at the end to scroll to */}
-            </ul>
-          </ScrollArea>
-          <div className="max-w-[500px] w-full space-y-2 p-4">
-            {selectedRecipient && (
-              <div className="flex items-center">
-                <span>Whispering to: {selectedRecipient}</span>
-                <Button variant="secondary" size="sm" onClick={clearSelectedRecipient} className="ml-2">
-                  x
-                </Button>
+                <Button onClick={sendMessage}>Send</Button>
               </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Input
-                type="text"
-                ref={messageInputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleEnterPress}
-                placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
-              />
-              <Button onClick={sendMessage}>Send</Button>
             </div>
           </div>
-          <Button
-            onClick={logout}
-            className="absolute top-4 right-4"
-            variant="outline"
-            size="sm"
-          >
-            Sign Out
-          </Button>
         </>
       )}
     </main>

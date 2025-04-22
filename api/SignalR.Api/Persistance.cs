@@ -13,6 +13,7 @@ public class Message
     public Guid? SenderUserId { get; set; }
     public string? SenderUsername { get; set; }
     public Guid? ReceiverUserId { get; set; }
+    public string? ReceiverUsername { get; set; }
     public DateTime SentAtUtc { get; set; }
 }
 

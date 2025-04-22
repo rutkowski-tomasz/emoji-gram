@@ -26,10 +26,10 @@ public static class BroadcastEndpoints
 
             var userId = user.GetUserId();
             var username = user.GetUsername();
-            await context.Clients.All.ReceiveMessage($"{username}: {request.Message}");
 
             var message = new Message
             {
+                Id = Guid.NewGuid(),
                 SenderUserId = userId,
                 SenderUsername = username,
                 Content = request.Message,
@@ -37,6 +37,8 @@ public static class BroadcastEndpoints
             };
             dbContext.Messages.Add(message);
             await dbContext.SaveChangesAsync();
+
+            await context.Clients.All.ReceiveMessage(message);
 
             return Results.NoContent();
         }).RequireAuthorization();

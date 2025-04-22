@@ -1,11 +1,19 @@
 import { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 
+interface Message {
+  id: string;
+  content: string;
+  senderUserId?: string | null;
+  senderUsername?: string | null;
+  receiverUserId?: string | null;
+  receiverUsername?: string | null;
+  sentAtUtc: string;
+}
+
 export function Welcome() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
-  const [messages, setMessages] = useState<
-    { content: string; sentAtUtc: string }[]
-  >([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [whisperRecipient, setWhisperRecipient] = useState("");
   const [whisperMessage, setWhisperMessage] = useState("");
@@ -69,18 +77,13 @@ export function Welcome() {
         .withAutomaticReconnect()
         .build();
 
-      connect.on("ReceiveMessage", (receivedMessage: string) => {
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { content: receivedMessage, sentAtUtc: new Date().toISOString() },
-        ]);
-      });
-
-      connect.on("ReceiveWhisper", (whisperedMessage: string) => {
-        setMessages((prevMessages) => [
-          ...prevMessages,
-          { content: whisperedMessage, sentAtUtc: new Date().toISOString() },
-        ]);
+      connect.on("ReceiveMessage", (receivedMessage: Message) => {
+        setMessages((prevMessages) => {
+          if (!prevMessages.some((msg) => msg.id === receivedMessage.id)) {
+            return [...prevMessages, receivedMessage];
+          }
+          return prevMessages;
+        });
       });
 
       connect.on("ReceiveError", (errorMessage: string) => {
@@ -93,30 +96,6 @@ export function Welcome() {
         .then(() => {
           console.log("Connected to SignalR hub");
           setConnection(connect);
-          fetch("http://localhost:8001/history", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
-            .then((response) => {
-              if (!response.ok) {
-                console.error("Failed to fetch history:", response.status);
-                return;
-              }
-              return response.json() as Promise<
-                { content: string; sentAtUtc: string }[]
-              >;
-            })
-            .then((historyMessages) => {
-              if (historyMessages) {
-                setMessages((prevMessages) =>
-                  [...prevMessages, ...historyMessages].sort(
-                    (a, b) => new Date(a.sentAtUtc).getTime() - new Date(b.sentAtUtc).getTime()
-                  )
-                );
-              }
-            })
-            .catch((error) => console.error("Error fetching history:", error));
         })
         .catch((err) =>
           console.error("Error connecting to SignalR hub:", err)
@@ -127,6 +106,36 @@ export function Welcome() {
       };
     }
   }, [isLoggedIn, accessToken]);
+
+  useEffect(() => {
+    if (connection && accessToken) {
+      const fetchHistory = async () => {
+        try {
+          const response = await fetch("http://localhost:8001/history", {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (!response.ok) {
+            console.error("Failed to fetch history:", response.status);
+            return;
+          }
+
+          const historyMessages = (await response.json()) as Message[];
+          setMessages((prevMessages) => {
+            const combined = [...prevMessages, ...historyMessages];
+            const uniqueMessages = Array.from(new Map(combined.map(message => [message.id, message])).values());
+            return uniqueMessages.sort((a, b) => new Date(a.sentAtUtc).getTime() - new Date(b.sentAtUtc).getTime());
+          });
+        } catch (error) {
+          console.error("Error fetching history:", error);
+        }
+      };
+
+      fetchHistory();
+    }
+  }, [connection, accessToken]);
 
   const sendMessage = async () => {
     if (connection && message.trim() && isLoggedIn) {
@@ -166,6 +175,18 @@ export function Welcome() {
     } else if (!whisperRecipient.trim()) {
       alert("Please enter a recipient username.");
     }
+  };
+
+  const formatMessage = (msg: Message): string => {
+    if (msg.senderUsername && !msg.receiverUsername) {
+      return `${msg.senderUsername}: ${msg.content}`;
+    } else if (msg.senderUsername && msg.receiverUsername && !msg.receiverUserId) {
+      return `${msg.senderUsername} ${msg.content.replace(msg.senderUsername, '').trim()}`;
+    } else if (msg.senderUsername && msg.receiverUsername) {
+      const isToMe = msg.receiverUsername === whisperRecipient;
+      return isToMe ? `whispered to ${msg.receiverUsername}: ${msg.content}` : `${msg.senderUsername} whispered: ${msg.content}`;
+    }
+    return msg.content;
   };
 
   if (!isLoggedIn) {
@@ -214,9 +235,9 @@ export function Welcome() {
           <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
             <h2>Messages</h2>
             <ul className="space-y-2 overflow-y-auto h-[300px]">
-              {messages.map((msg, index) => (
-                <li key={index} className="text-gray-700 dark:text-gray-200">
-                  {msg.content}
+              {messages.map((msg) => (
+                <li key={msg.id} className="text-gray-700 dark:text-gray-200">
+                  {formatMessage(msg)}
                 </li>
               ))}
             </ul>

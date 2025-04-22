@@ -2,6 +2,9 @@ using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 
 namespace SignalR.Api;
 
@@ -19,11 +22,16 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         UsernameToId.TryAdd(preferredUsername, userId);
         logger.LogInformation("{PreferredUsername} ({UserId}) connected", preferredUsername, userId);
 
-        var joinMessage = new Message { Content = $"{preferredUsername} connected", SentAtUtc = DateTime.UtcNow };
+        var joinMessage = new Message
+        {
+            Id = Guid.NewGuid(),
+            Content = $"{preferredUsername} connected",
+            SentAtUtc = DateTime.UtcNow
+        };
         dbContext.Messages.Add(joinMessage);
         await dbContext.SaveChangesAsync();
 
-        await Clients.All.ReceiveMessage($"{preferredUsername} connected");
+        await Clients.All.ReceiveMessage(joinMessage);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -42,11 +50,16 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         UsernameToId.TryRemove(preferredUsername, out _);
         logger.LogInformation("{PreferredUsername} ({UserId}) disconnected", preferredUsername, userId);
 
-        var disconnectMessage = new Message { Content = $"{preferredUsername} disconnected", SentAtUtc = DateTime.UtcNow };
+        var disconnectMessage = new Message
+        {
+            Id = Guid.NewGuid(),
+            Content = $"{preferredUsername} disconnected",
+            SentAtUtc = DateTime.UtcNow
+        };
         dbContext.Messages.Add(disconnectMessage);
         await dbContext.SaveChangesAsync();
 
-        await Clients.All.ReceiveMessage($"{preferredUsername} disconnected");
+        await Clients.All.ReceiveMessage(disconnectMessage);
     }
 
     public async Task SendMessage(string message)
@@ -59,10 +72,10 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         var senderUserId = Context.User.GetUserId();
         var preferredUsername = Context.User.GetUsername();
         logger.LogInformation("{PreferredUsername} sent {Message}", preferredUsername, senderUserId, message);
-        await Clients.All.ReceiveMessage($"{preferredUsername}: {message}");
 
         var newMessage = new Message
         {
+            Id = Guid.NewGuid(),
             SenderUserId = senderUserId,
             SenderUsername = preferredUsername,
             Content = message,
@@ -70,11 +83,12 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         };
         dbContext.Messages.Add(newMessage);
         await dbContext.SaveChangesAsync();
+
+        await Clients.All.ReceiveMessage(newMessage);
     }
 
     public async Task SendWhisper(string receiverUsername, string message)
     {
-        logger.LogInformation("{ReceiverUsername} {Message}", receiverUsername, message);
         if (!EmojiValidator.IsValidEmojiMessage(message))
         {
             await Clients.Caller.ReceiveError("Server: Whisper must contain only emojis and whitespace.");
@@ -82,7 +96,6 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         }
         var senderUserId = Context.User.GetUserId();
         var senderUsername = Context.User.GetUsername();
-            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUsername} (): {Message}", senderUsername, senderUserId, receiverUsername, message);
 
         if (UsernameToId.TryGetValue(receiverUsername, out var receiverUserId))
         {
@@ -90,9 +103,11 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
             var whisperMessage = new Message
             {
+                Id = Guid.NewGuid(),
                 SenderUserId = senderUserId,
                 SenderUsername = senderUsername,
                 ReceiverUserId = receiverUserId,
+                ReceiverUsername = receiverUsername,
                 Content = message,
                 SentAtUtc = DateTime.UtcNow
             };
@@ -102,10 +117,12 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             if (UserConnections.TryGetValue(receiverUserId, out var connectionsIds))
             {
                 var sendTasks = connectionsIds
-                    .Select(connectionId => Clients.Client(connectionId).ReceiveWhisper($"{senderUsername} whispers: {message}"));
+                    .Select(connectionId => Clients.Client(connectionId).ReceiveMessage(whisperMessage));
 
                 await Task.WhenAll(sendTasks);
             }
+
+            await Clients.Caller.ReceiveMessage(whisperMessage);
         }
         else
         {
@@ -116,7 +133,6 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
 public interface IChatHubClient
 {
-    Task ReceiveMessage(string message);
-    Task ReceiveWhisper(string message);
+    Task ReceiveMessage(Message message);
     Task ReceiveError(string errorMessage);
 }

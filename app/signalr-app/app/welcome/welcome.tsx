@@ -1,22 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 import { z } from "zod";
-
-interface Message {
-  id: string;
-  content: string;
-  senderUserId?: string | null;
-  senderUsername?: string | null;
-  receiverUserId?: string | null;
-  receiverUsername?: string | null;
-  sentAtUtc: string;
-}
+import Message from '../components/message';
 
 const emojiOnlySchema = z.string().emoji();
 
 export function Welcome() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<IMessage[]>([]);
   const [message, setMessage] = useState("");
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -82,7 +73,7 @@ export function Welcome() {
       .withAutomaticReconnect()
       .build();
 
-    connect.on("ReceiveMessage", (receivedMessage: Message) => {
+    connect.on("ReceiveMessage", (receivedMessage: IMessage) => {
       setMessages((prevMessages) => {
         if (!prevMessages.some((msg) => msg.id === receivedMessage.id)) {
           return [...prevMessages, receivedMessage];
@@ -127,7 +118,7 @@ export function Welcome() {
           return;
         }
 
-        const historyMessages = (await response.json()) as Message[];
+        const historyMessages = (await response.json()) as IMessage[];
         setMessages((prevMessages) => {
           const combined = [...prevMessages, ...historyMessages];
           const uniqueMessages = Array.from(new Map(combined.map(message => [message.id, message])).values());
@@ -194,18 +185,6 @@ export function Welcome() {
     setSelectedRecipient(null);
   };
 
-  const formatMessage = (msg: Message): string => {
-    if (msg.senderUsername && !msg.receiverUsername) {
-      return `${msg.senderUsername}: ${msg.content}`;
-    } else if (msg.senderUsername && msg.receiverUsername && !msg.receiverUserId) {
-      return `${msg.senderUsername} ${msg.content.replace(msg.senderUsername, '').trim()}`;
-    } else if (msg.senderUsername && msg.receiverUsername) {
-      const isToMe = msg.receiverUsername === loginUsername;
-      return isToMe ? `whispered to you: ${msg.content}` : `${msg.senderUsername} whispered: ${msg.content}`;
-    }
-    return msg.content;
-  };
-
   if (!isLoggedIn) {
     return (
       <main className="flex items-center justify-center pt-16 pb-4">
@@ -252,19 +231,7 @@ export function Welcome() {
           <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
             <h2>Messages</h2>
             <ul className="space-y-2 overflow-y-auto h-[300px]">
-              {messages.map((msg) => (
-                <li key={msg.id} className="text-gray-700 dark:text-gray-200">
-                  {msg.senderUsername && (
-                    <span
-                      onClick={() => handleUsernameClick(msg.senderUsername)}
-                      className="cursor-pointer font-semibold hover:underline"
-                    >
-                      {msg.senderUsername}:{" "}
-                    </span>
-                  )}
-                  {formatMessage(msg)}
-                </li>
-              ))}
+              {messages.map((msg) => <Message key={msg.id} msg={msg} loginUsername={loginUsername} onUsernameClick={handleUsernameClick} />)}
             </ul>
           </div>
           <div className="flex flex-col gap-2">

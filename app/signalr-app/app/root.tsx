@@ -1,3 +1,4 @@
+// app/root.tsx
 import {
   isRouteErrorResponse,
   Links,
@@ -9,7 +10,8 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider } from "~/context/AuthContext";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -34,7 +36,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body suppressHydrationWarning={true}>
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
         <ScrollRestoration />
         <Scripts />
         <Toaster />

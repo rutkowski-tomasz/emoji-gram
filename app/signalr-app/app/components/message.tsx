@@ -1,3 +1,5 @@
+// app/components/Message.tsx
+
 interface MessageProps {
   msg: IMessage;
   loginUsername: string;

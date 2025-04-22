@@ -1,13 +1,15 @@
-import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
+// app/routes/home.tsx
+'use client';
 
-export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
-  ];
-}
+import { useRequireAuth } from '~/context/AuthContext';
+import { Chat } from '~/chat/chat';
 
 export default function Home() {
-  return <Welcome />;
+  useRequireAuth();
+  
+  return (
+    <main>
+      <Chat />
+    </main>
+  );
 }

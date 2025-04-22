@@ -29,8 +29,22 @@ export function Chat() {
   const [message, setMessage] = useState("");
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const accessToken = getToken();
+
+  // Function to scroll to bottom of messages
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  // Effect to scroll to bottom whenever messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -164,7 +178,7 @@ export function Chat() {
     <main className="fixed top-0 left-0 w-full h-full flex flex-col justify-between items-center bg-gray-100 dark:bg-gray-900">
       {accessToken && (
         <>
-          <ScrollArea className="w-full h-full p-4">
+          <ScrollArea className="w-full h-full p-4" ref={scrollAreaRef}>
             <ul className="space-y-2">
               {messages.map((msg) => (
                 <Message
@@ -174,9 +188,10 @@ export function Chat() {
                   onUsernameClick={handleUsernameClick}
                 />
               ))}
+              <div ref={messagesEndRef} /> {/* Empty div at the end to scroll to */}
             </ul>
           </ScrollArea>
-          <div className="max-w-[500px] w-full space-y-2">
+          <div className="max-w-[500px] w-full space-y-2 p-4">
             {selectedRecipient && (
               <div className="flex items-center">
                 <span>Whispering to: {selectedRecipient}</span>

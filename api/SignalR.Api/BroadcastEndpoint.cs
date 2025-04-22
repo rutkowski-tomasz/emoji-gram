@@ -33,7 +33,8 @@ public static class BroadcastEndpoints
                 SenderUserId = userId,
                 SenderUsername = username,
                 Content = request.Message,
-                SentAtUtc = DateTime.UtcNow
+                SentAtUtc = DateTime.UtcNow,
+                Type = MessageType.Message
             };
             dbContext.Messages.Add(message);
             await dbContext.SaveChangesAsync();

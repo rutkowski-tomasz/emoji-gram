@@ -15,8 +15,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.User.GetUserId();
-        var preferredUsername = Context.User.GetUsername();
+        var userId = Context.User!.GetUserId();
+        var preferredUsername = Context.User!.GetUsername();
 
         UserConnections.GetOrAdd(userId, []).Add(Context.ConnectionId);
         UsernameToId.TryAdd(preferredUsername, userId);
@@ -26,7 +26,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         {
             Id = Guid.NewGuid(),
             Content = $"{preferredUsername} connected",
-            SentAtUtc = DateTime.UtcNow
+            SentAtUtc = DateTime.UtcNow,
+            Type = MessageType.Connected
         };
         dbContext.Messages.Add(joinMessage);
         await dbContext.SaveChangesAsync();
@@ -36,8 +37,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.User.GetUserId();
-        var preferredUsername = Context.User.GetUsername();
+        var userId = Context.User!.GetUserId();
+        var preferredUsername = Context.User!.GetUsername();
 
         if (UserConnections.TryGetValue(userId, out var connectionsIds))
         {
@@ -54,7 +55,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         {
             Id = Guid.NewGuid(),
             Content = $"{preferredUsername} disconnected",
-            SentAtUtc = DateTime.UtcNow
+            SentAtUtc = DateTime.UtcNow,
+            Type = MessageType.Disconnected
         };
         dbContext.Messages.Add(disconnectMessage);
         await dbContext.SaveChangesAsync();
@@ -69,17 +71,18 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             await Clients.Caller.ReceiveError("Server: Message must contain only emojis and whitespace.");
             return;
         }
-        var senderUserId = Context.User.GetUserId();
-        var preferredUsername = Context.User.GetUsername();
-        logger.LogInformation("{PreferredUsername} sent {Message}", preferredUsername, senderUserId, message);
+        var senderUserId = Context.User!.GetUserId();
+        var senderUsername = Context.User!.GetUsername();
+        logger.LogInformation("{SenderUsername} sent {Message}", senderUsername, message);
 
         var newMessage = new Message
         {
             Id = Guid.NewGuid(),
             SenderUserId = senderUserId,
-            SenderUsername = preferredUsername,
+            SenderUsername = senderUsername,
             Content = message,
-            SentAtUtc = DateTime.UtcNow
+            SentAtUtc = DateTime.UtcNow,
+            Type = MessageType.Message
         };
         dbContext.Messages.Add(newMessage);
         await dbContext.SaveChangesAsync();
@@ -94,8 +97,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             await Clients.Caller.ReceiveError("Server: Whisper must contain only emojis and whitespace.");
             return;
         }
-        var senderUserId = Context.User.GetUserId();
-        var senderUsername = Context.User.GetUsername();
+        var senderUserId = Context.User!.GetUserId();
+        var senderUsername = Context.User!.GetUsername();
 
         if (UsernameToId.TryGetValue(receiverUsername, out var receiverUserId))
         {
@@ -109,7 +112,8 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
                 ReceiverUserId = receiverUserId,
                 ReceiverUsername = receiverUsername,
                 Content = message,
-                SentAtUtc = DateTime.UtcNow
+                SentAtUtc = DateTime.UtcNow,
+                Type = MessageType.Whisper
             };
             dbContext.Messages.Add(whisperMessage);
             await dbContext.SaveChangesAsync();

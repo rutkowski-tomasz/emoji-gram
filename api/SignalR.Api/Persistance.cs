@@ -15,6 +15,15 @@ public class Message
     public Guid? ReceiverUserId { get; set; }
     public string? ReceiverUsername { get; set; }
     public DateTime SentAtUtc { get; set; }
+    public MessageType Type { get; set; }
+}
+
+public enum MessageType
+{
+    Connected,
+    Disconnected,
+    Message,
+    Whisper,
 }
 
 public class MessageConfiguration : IEntityTypeConfiguration<Message>

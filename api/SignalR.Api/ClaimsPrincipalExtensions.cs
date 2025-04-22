@@ -18,7 +18,7 @@ public static class ClaimsPrincipalExtensions
 
     public static string GetUsername(this ClaimsPrincipal principal)
     {
-        var usernameClaim = principal.FindFirst("preferred_username");
+        var usernameClaim = principal?.FindFirst("preferred_username");
         if (usernameClaim != null)
         {
             return usernameClaim.Value;

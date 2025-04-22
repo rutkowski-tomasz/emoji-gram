@@ -1,7 +1,13 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
 import { z } from "zod";
-import Message from '../components/message';
+import Message from '@/components/Message';
+import SignIn from '@/components/SignIn';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast, Toaster } from "sonner";
 
 const emojiOnlySchema = z.string().emoji();
 
@@ -12,54 +18,31 @@ export function Welcome() {
   const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
   const messageInputRef = useRef<HTMLInputElement>(null);
 
-  const KeyCloak_HostAddress = "http://localhost:8080";
-  const realm = "myrealm";
-  const clientId = "myclient";
-
-  const login = async () => {
-    if (!loginUsername.trim() || !loginPassword.trim()) {
-      alert("Please enter username and password.");
-      return;
-    }
-    try {
-      const response = await fetch(
-        `${KeyCloak_HostAddress}/realms/${realm}/protocol/openid-connect/token`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "password",
-            client_id: clientId,
-            username: loginUsername,
-            password: loginPassword,
-          }).toString(),
-        }
-      );
-
-      if (!response.ok) {
-        console.error("Login failed:", response.status);
-        setError(`Login failed: ${response.statusText}`);
-        setTimeout(() => setError(null), 3000);
-        return;
-      }
-
-      const data = await response.json();
-      setAccessToken(data.access_token);
-      setIsLoggedIn(true);
-      console.log("Logged in successfully");
-    } catch (error) {
-      console.error("Error during login:", error);
-      setError(`Error during login: ${error}`);
-      setTimeout(() => setError(null), 3000);
-    }
+  const handleSignIn = (token: string) => {
+    setAccessToken(token);
+    setIsLoggedIn(true);
+    sessionStorage.setItem('accessToken', token);
+    console.log("Logged in from Welcome!");
   };
+
+  const logout = () => {
+    setAccessToken(null);
+    setIsLoggedIn(false);
+    sessionStorage.removeItem('accessToken');
+    setMessages([]);
+    setConnection(null);
+    console.log("Logged out");
+  };
+
+  useEffect(() => {
+    const storedToken = sessionStorage.getItem('accessToken');
+    if (storedToken) {
+      setAccessToken(storedToken);
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn || !accessToken) {
@@ -83,8 +66,7 @@ export function Welcome() {
     });
 
     connect.on("ReceiveError", (errorMessage: string) => {
-      setError(errorMessage);
-      setTimeout(() => setError(null), 3000);
+      toast({ title: "Error", description: errorMessage });
     });
 
     connect
@@ -96,7 +78,9 @@ export function Welcome() {
       .catch((err) => console.error("Error connecting to SignalR hub:", err));
 
     return () => {
-      connect.stop();
+      if (connection) {
+        connection.stop();
+      }
     };
   }, [isLoggedIn, accessToken]);
 
@@ -115,6 +99,7 @@ export function Welcome() {
 
         if (!response.ok) {
           console.error("Failed to fetch history:", response.status);
+          toast({ title: "Error", description: "Failed to fetch message history." });
           return;
         }
 
@@ -126,6 +111,7 @@ export function Welcome() {
         });
       } catch (error) {
         console.error("Error fetching history:", error);
+        toast({ title: "Error", description: "Error fetching message history." });
       }
     };
 
@@ -134,12 +120,12 @@ export function Welcome() {
 
   const sendMessage = async () => {
     if (!isLoggedIn) {
-      setError("Please log in to send messages.");
+      toast({ title: "Error", description: "Please log in to send messages." });
       return;
     }
 
     if (!connection) {
-      setError("Not connected to the chat hub.");
+      toast({ title: "Error", description: "Not connected to the chat hub." });
       return;
     }
 
@@ -149,8 +135,7 @@ export function Welcome() {
 
     const validationResult = emojiOnlySchema.safeParse(message);
     if (!validationResult.success) {
-      setError("Message must consist of only emojis and whitespace.");
-      setTimeout(() => setError(null), 3000);
+      toast({ title: "Error", description: "Message must consist of only emojis and whitespace." });
       return;
     }
 
@@ -167,12 +152,12 @@ export function Welcome() {
       }
     } catch (err) {
       console.error("Error sending message:", err);
-      setError("Error sending message.");
+      toast({ title: "Error", description: "Error sending message." });
     }
   };
 
   const handleEnterPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && event.currentTarget === messageInputRef.current) {
       sendMessage();
     }
   };
@@ -187,82 +172,64 @@ export function Welcome() {
 
   if (!isLoggedIn) {
     return (
-      <main className="flex items-center justify-center pt-16 pb-4">
-        <div className="flex-1 flex flex-col items-center gap-8 min-h-0">
-          <header className="flex flex-col items-center gap-4">
-            <h1>EmojiGram</h1>
-          </header>
-          <div className="max-w-[300px] w-full space-y-4 px-4">
-            {error && <div className="text-red-500">{error}</div>}
-            <input
-              type="text"
-              value={loginUsername}
-              onChange={(e) => setLoginUsername(e.target.value)}
-              placeholder="Username"
-              className="w-full px-4 py-2 border rounded dark:bg-gray-800 dark:text-gray-200"
-            />
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full px-4 py-2 border rounded dark:bg-gray-800 dark:text-gray-200"
-            />
-            <button
-              onClick={login}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Log In
-            </button>
-          </div>
-        </div>
+      <main className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
+        <SignIn onLogin={handleSignIn} />
+        <Toaster />
       </main>
     );
   }
 
   return (
-    <main className="flex items-center justify-center pt-16 pb-4">
-      <div className="flex-1 flex flex-col items-center gap-12 min-h-0">
-        <header className="flex flex-col items-center gap-6">
-          <h1>EmojiGram</h1>
-        </header>
-        <div className="max-w-[500px] w-full space-y-6 px-4">
-          {error && <div className="text-red-500">{error}</div>}
-          <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-            <h2>Messages</h2>
-            <ul className="space-y-2 overflow-y-auto h-[300px]">
-              {messages.map((msg) => <Message key={msg.id} msg={msg} loginUsername={loginUsername} onUsernameClick={handleUsernameClick} />)}
-            </ul>
+    <main className="fixed top-0 left-0 w-full h-full flex flex-col justify-between items-center bg-gray-100 dark:bg-gray-900 p-4">
+      <header className="flex flex-col items-center gap-2">
+        <h1 className="text-2xl font-bold">EmojiGram</h1>
+      </header>
+      <div className="flex-1 max-w-[500px] w-full">
+        <Card className="h-full flex flex-col justify-between rounded-md border border-gray-200 dark:border-gray-700 shadow-sm">
+          <CardHeader>
+            <CardTitle>Messages</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-y-auto h-[calc(100vh - 200px)]">
+            <ScrollArea className="h-full">
+              <ul className="space-y-2">
+                {messages.map((msg) => <Message key={msg.id} msg={msg} loginUsername={accessToken?.split('.')[0]} onUsernameClick={handleUsernameClick} />)}
+              </ul>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="max-w-[500px] w-full space-y-2">
+        {selectedRecipient && (
+          <div className="flex items-center">
+            <span>Whispering to: {selectedRecipient}</span>
+            <Button variant="secondary" size="sm" onClick={clearSelectedRecipient} className="ml-2">
+              x
+            </Button>
           </div>
-          <div className="flex flex-col gap-2">
-            {selectedRecipient && (
-              <div className="flex items-center">
-                <span>Whispering to: {selectedRecipient}</span>
-                <button onClick={clearSelectedRecipient} className="ml-2 text-gray-500 hover:text-gray-700">
-                  x
-                </button>
-              </div>
-            )}
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                ref={messageInputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleEnterPress}
-                placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
-                className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
-              />
-              <button
-                onClick={sendMessage}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Send
-              </button>
-            </div>
-          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            ref={messageInputRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={handleEnterPress}
+            placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
+          />
+          <Button onClick={sendMessage}>Send</Button>
         </div>
       </div>
+      {isLoggedIn && (
+        <Button
+          onClick={logout}
+          className="absolute top-4 right-4"
+          variant="destructive"
+          size="sm"
+        >
+          Sign Out
+        </Button>
+      )}
+      <Toaster />
     </main>
   );
 }

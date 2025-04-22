@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import * as signalR from "@microsoft/signalr";
+import { z } from "zod";
 
 interface Message {
   id: string;
@@ -11,6 +12,8 @@ interface Message {
   sentAtUtc: string;
 }
 
+const emojiOnlySchema = z.string().emoji();
+
 export function Welcome() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -19,7 +22,7 @@ export function Welcome() {
   const [whisperMessage, setWhisperMessage] = useState("");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [receiveError, setReceiveError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -52,8 +55,8 @@ export function Welcome() {
 
       if (!response.ok) {
         console.error("Login failed:", response.status);
-        setReceiveError(`Login failed: ${response.statusText}`);
-        setTimeout(() => setReceiveError(null), 3000);
+        setError(`Login failed: ${response.statusText}`);
+        setTimeout(() => setError(null), 3000);
         return;
       }
 
@@ -63,93 +66,113 @@ export function Welcome() {
       console.log("Logged in successfully");
     } catch (error) {
       console.error("Error during login:", error);
-      setReceiveError(`Error during login: ${error}`);
-      setTimeout(() => setReceiveError(null), 3000);
+      setError(`Error during login: ${error}`);
+      setTimeout(() => setError(null), 3000);
     }
   };
 
   useEffect(() => {
-    if (isLoggedIn && accessToken) {
-      const connect = new signalR.HubConnectionBuilder()
-        .withUrl("http://localhost:8001/hub", {
-          accessTokenFactory: () => accessToken,
-        })
-        .withAutomaticReconnect()
-        .build();
-
-      connect.on("ReceiveMessage", (receivedMessage: Message) => {
-        setMessages((prevMessages) => {
-          if (!prevMessages.some((msg) => msg.id === receivedMessage.id)) {
-            return [...prevMessages, receivedMessage];
-          }
-          return prevMessages;
-        });
-      });
-
-      connect.on("ReceiveError", (errorMessage: string) => {
-        setReceiveError(errorMessage);
-        setTimeout(() => setReceiveError(null), 3000);
-      });
-
-      connect
-        .start()
-        .then(() => {
-          console.log("Connected to SignalR hub");
-          setConnection(connect);
-        })
-        .catch((err) =>
-          console.error("Error connecting to SignalR hub:", err)
-        );
-
-      return () => {
-        connect.stop();
-      };
+    if (!isLoggedIn || !accessToken) {
+      return;
     }
+
+    const connect = new signalR.HubConnectionBuilder()
+      .withUrl("http://localhost:8001/hub", {
+        accessTokenFactory: () => accessToken,
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    connect.on("ReceiveMessage", (receivedMessage: Message) => {
+      setMessages((prevMessages) => {
+        if (!prevMessages.some((msg) => msg.id === receivedMessage.id)) {
+          return [...prevMessages, receivedMessage];
+        }
+        return prevMessages;
+      });
+    });
+
+    connect.on("ReceiveError", (errorMessage: string) => {
+      setError(errorMessage);
+      setTimeout(() => setError(null), 3000);
+    });
+
+    connect
+      .start()
+      .then(() => {
+        console.log("Connected to SignalR hub");
+        setConnection(connect);
+      })
+      .catch((err) => console.error("Error connecting to SignalR hub:", err));
+
+    return () => {
+      connect.stop();
+    };
   }, [isLoggedIn, accessToken]);
 
   useEffect(() => {
-    if (connection && accessToken) {
-      const fetchHistory = async () => {
-        try {
-          const response = await fetch("http://localhost:8001/history", {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          });
-
-          if (!response.ok) {
-            console.error("Failed to fetch history:", response.status);
-            return;
-          }
-
-          const historyMessages = (await response.json()) as Message[];
-          setMessages((prevMessages) => {
-            const combined = [...prevMessages, ...historyMessages];
-            const uniqueMessages = Array.from(new Map(combined.map(message => [message.id, message])).values());
-            return uniqueMessages.sort((a, b) => new Date(a.sentAtUtc).getTime() - new Date(b.sentAtUtc).getTime());
-          });
-        } catch (error) {
-          console.error("Error fetching history:", error);
-        }
-      };
-
-      fetchHistory();
+    if (!connection || !accessToken) {
+      return;
     }
+
+    const fetchHistory = async () => {
+      try {
+        const response = await fetch("http://localhost:8001/history", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          console.error("Failed to fetch history:", response.status);
+          return;
+        }
+
+        const historyMessages = (await response.json()) as Message[];
+        setMessages((prevMessages) => {
+          const combined = [...prevMessages, ...historyMessages];
+          const uniqueMessages = Array.from(new Map(combined.map(message => [message.id, message])).values());
+          return uniqueMessages.sort((a, b) => new Date(a.sentAtUtc).getTime() - new Date(b.sentAtUtc).getTime());
+        });
+      } catch (error) {
+        console.error("Error fetching history:", error);
+      }
+    };
+
+    fetchHistory();
   }, [connection, accessToken]);
 
   const sendMessage = async () => {
-    if (connection && message.trim() && isLoggedIn) {
-      try {
-        await connection.invoke("SendMessage", message);
-        setMessage("");
-        if (messageInputRef.current) {
-          messageInputRef.current.focus();
-        }
-      } catch (err) {
-        console.error("Error sending message:", err);
+    if (!isLoggedIn) {
+      setError("Please log in to send messages.");
+      return;
+    }
+
+    if (!connection) {
+      setError("Not connected to the chat hub.");
+      return;
+    }
+
+    if (!message.trim()) {
+      return;
+    }
+
+    const validationResult = emojiOnlySchema.safeParse(message);
+    if (!validationResult.success) {
+      setError("Message must consist of only emojis and whitespace.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      await connection.invoke("SendMessage", message);
+      setMessage("");
+      if (messageInputRef.current) {
+        messageInputRef.current.focus();
       }
-    } else if (!isLoggedIn) {
-      alert("Please log in to send messages.");
+    } catch (err) {
+      console.error("Error sending message:", err);
+      setError("Error sending message.");
     }
   };
 
@@ -160,20 +183,40 @@ export function Welcome() {
   };
 
   const sendWhisper = async () => {
-    if (connection && whisperMessage.trim() && whisperRecipient.trim() && isLoggedIn) {
-      setReceiveError(null);
-      try {
-        await connection.invoke("SendWhisper", whisperRecipient, whisperMessage);
-        setWhisperMessage("");
-        setWhisperRecipient("");
-      } catch (err) {
-        console.error("Error sending private message:", err);
-        setReceiveError("Failed to send whisper.");
-      }
-    } else if (!isLoggedIn) {
-      alert("Please log in to send private messages.");
-    } else if (!whisperRecipient.trim()) {
-      alert("Please enter a recipient username.");
+    if (!isLoggedIn) {
+      setError("Please log in to send private messages.");
+      return;
+    }
+
+    if (!connection) {
+      setError("Not connected to the chat hub.");
+      return;
+    }
+
+    if (!whisperRecipient.trim()) {
+      setError("Please enter a recipient username.");
+      return;
+    }
+
+    if (!whisperMessage.trim()) {
+      return;
+    }
+
+    const validationResult = emojiOnlySchema.safeParse(whisperMessage);
+    if (!validationResult.success) {
+      setError("Whisper message must consist of only emojis and whitespace.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    setError(null);
+    try {
+      await connection.invoke("SendWhisper", whisperRecipient, whisperMessage);
+      setWhisperMessage("");
+      setWhisperRecipient("");
+    } catch (err) {
+      console.error("Error sending private message:", err);
+      setError("Failed to send whisper.");
     }
   };
 
@@ -197,7 +240,7 @@ export function Welcome() {
             <h1>EmojiGram</h1>
           </header>
           <div className="max-w-[300px] w-full space-y-4 px-4">
-            {receiveError && <div className="text-red-500">{receiveError}</div>}
+            {error && <div className="text-red-500">{error}</div>}
             <input
               type="text"
               value={loginUsername}
@@ -231,7 +274,7 @@ export function Welcome() {
           <h1>EmojiGram</h1>
         </header>
         <div className="max-w-[500px] w-full space-y-6 px-4">
-          {receiveError && <div className="text-red-500">{receiveError}</div>}
+          {error && <div className="text-red-500">{error}</div>}
           <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
             <h2>Messages</h2>
             <ul className="space-y-2 overflow-y-auto h-[300px]">

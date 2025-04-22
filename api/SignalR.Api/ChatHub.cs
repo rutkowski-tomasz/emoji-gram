@@ -15,18 +15,19 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.User!.GetUserId();
-        var preferredUsername = Context.User!.GetUsername();
+        var senderUserId = Context.User!.GetUserId();
+        var senderUsername = Context.User!.GetUsername();
 
-        UserConnections.GetOrAdd(userId, []).Add(Context.ConnectionId);
-        UsernameToId.TryAdd(preferredUsername, userId);
-        logger.LogInformation("{PreferredUsername} ({UserId}) connected", preferredUsername, userId);
+        UserConnections.GetOrAdd(senderUserId, []).Add(Context.ConnectionId);
+        UsernameToId.TryAdd(senderUsername, senderUserId);
+        logger.LogInformation("{SenderUsername} ({UserId}) connected", senderUsername, senderUserId);
 
         var joinMessage = new Message
         {
             Id = Guid.NewGuid(),
-            Content = $"{preferredUsername} connected",
+            Content = string.Empty,
             SentAtUtc = DateTime.UtcNow,
+            SenderUsername = senderUsername,
             Type = MessageType.Connected
         };
         dbContext.Messages.Add(joinMessage);
@@ -37,25 +38,26 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.User!.GetUserId();
-        var preferredUsername = Context.User!.GetUsername();
+        var senderUserId = Context.User!.GetUserId();
+        var senderUsername = Context.User!.GetUsername();
 
-        if (UserConnections.TryGetValue(userId, out var connectionsIds))
+        if (UserConnections.TryGetValue(senderUserId, out var connectionsIds))
         {
             connectionsIds.Remove(Context.ConnectionId);
             if (connectionsIds.Count == 0)
             {
-                UserConnections.TryRemove(userId, out _);
+                UserConnections.TryRemove(senderUserId, out _);
             }
         }
-        UsernameToId.TryRemove(preferredUsername, out _);
-        logger.LogInformation("{PreferredUsername} ({UserId}) disconnected", preferredUsername, userId);
+        UsernameToId.TryRemove(senderUsername, out _);
+        logger.LogInformation("{SenderUsername} ({SenderUserId}) disconnected", senderUsername, senderUserId);
 
         var disconnectMessage = new Message
         {
             Id = Guid.NewGuid(),
-            Content = $"{preferredUsername} disconnected",
+            Content = string.Empty,
             SentAtUtc = DateTime.UtcNow,
+            SenderUsername = senderUsername,
             Type = MessageType.Disconnected
         };
         dbContext.Messages.Add(disconnectMessage);

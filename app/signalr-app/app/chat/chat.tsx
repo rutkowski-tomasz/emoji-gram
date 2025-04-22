@@ -161,33 +161,21 @@ export function Chat() {
   };
 
   return (
-    <main className="fixed top-0 left-0 w-full h-full flex flex-col justify-between items-center bg-gray-100 dark:bg-gray-900 p-4">
+    <main className="fixed top-0 left-0 w-full h-full flex flex-col justify-between items-center bg-gray-100 dark:bg-gray-900">
       {accessToken && (
         <>
-          <header className="flex flex-col items-center gap-2">
-            <h1 className="text-2xl font-bold">EmojiGram</h1>
-          </header>
-          <div className="flex-1 max-w-[500px] w-full">
-            <Card className="h-full flex flex-col justify-between rounded-md border border-gray-200 dark:border-gray-700 shadow-sm">
-              <CardHeader>
-                <CardTitle>Messages</CardTitle>
-              </CardHeader>
-              <CardContent className="overflow-y-auto h-[calc(100vh - 200px)]">
-                <ScrollArea className="h-full">
-                  <ul className="space-y-2">
-                    {messages.map((msg) => (
-                      <Message
-                        key={msg.id}
-                        msg={msg}
-                        loginUsername={accessToken?.split('.')[0]}
-                        onUsernameClick={handleUsernameClick}
-                      />
-                    ))}
-                  </ul>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
+          <ScrollArea className="w-full h-full p-4">
+            <ul className="space-y-2">
+              {messages.map((msg) => (
+                <Message
+                  key={msg.id}
+                  msg={msg}
+                  loginUsername={accessToken?.split('.')[0]}
+                  onUsernameClick={handleUsernameClick}
+                />
+              ))}
+            </ul>
+          </ScrollArea>
           <div className="max-w-[500px] w-full space-y-2">
             {selectedRecipient && (
               <div className="flex items-center">
@@ -212,7 +200,7 @@ export function Chat() {
           <Button
             onClick={logout}
             className="absolute top-4 right-4"
-            variant="destructive"
+            variant="outline"
             size="sm"
           >
             Sign Out

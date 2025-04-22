@@ -1,5 +1,8 @@
 // app/components/Message.tsx
 
+import type { JSX } from "react";
+import { MessageType, type IMessage } from "~/models/message";
+
 interface MessageProps {
   msg: IMessage;
   loginUsername: string;
@@ -8,29 +11,38 @@ interface MessageProps {
 
 export default function Message({ msg, loginUsername, onUsernameClick }: MessageProps) {
 
-  const formatMessage = (msg: IMessage): string => {
-    if (msg.senderUsername && !msg.receiverUsername) {
-      return `${msg.senderUsername}: ${msg.content}`;
-    } else if (msg.senderUsername && msg.receiverUsername && !msg.receiverUserId) {
-      return `${msg.senderUsername} ${msg.content.replace(msg.senderUsername, '').trim()}`;
-    } else if (msg.senderUsername && msg.receiverUsername) {
-      const isToMe = msg.receiverUsername === loginUsername;
-      return isToMe ? `whispered to you: ${msg.content}` : `${msg.senderUsername} whispered: ${msg.content}`;
+  const buildUserLink = (username: string) =>(
+    <span
+      onClick={() => onUsernameClick(username)}
+      className="cursor-pointer font-semibold hover:underline"
+    >
+      {username}
+    </span>
+  );
+
+  const buildMessage = (content: JSX.Element, isSystemMessage: boolean) => {
+    if (isSystemMessage) {
+      return (<li key={msg.id} className="text-gray-400 dark:text-gray-500 italic text-sm">
+        {content}
+      </li>);
     }
-    return msg.content;
+    return <li key={msg.id} className="text-gray-700 dark:text-gray-200">{content}</li>;
   };
 
-  return (
-    <li key={msg.id} className="text-gray-700 dark:text-gray-200">
-      {msg.senderUsername && (
-        <span
-          onClick={() => onUsernameClick(msg.senderUsername as string)}
-          className="cursor-pointer font-semibold hover:underline"
-        >
-          {msg.senderUsername}
-        </span>
-      )}
-      {formatMessage(msg)}
-    </li>
-  );
+  if (msg.type === MessageType.Connected) {
+    return buildMessage(<>{buildUserLink(msg.senderUsername!)} connected</>, true);
+  }
+  if (msg.type === MessageType.Disconnected) {
+    return buildMessage(<>{buildUserLink(msg.senderUsername!)} disconnected</>, true);
+  }
+  if (msg.type === MessageType.Message) {
+    return buildMessage(<>{buildUserLink(msg.senderUsername!)}: {msg.content}</>, false);
+  }
+  if (msg.type === MessageType.Whisper && msg.receiverUsername === loginUsername) {
+    return buildMessage(<>{buildUserLink(msg.senderUsername!)} whispered to you: {msg.content}</>, false);
+  }
+  if (msg.type === MessageType.Whisper) {
+    return buildMessage(<>you whispered to {buildUserLink(msg.senderUsername!)}: {msg.content}</>, false);
+  }
+  return <></>;
 }

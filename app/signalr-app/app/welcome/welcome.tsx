@@ -18,8 +18,7 @@ export function Welcome() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
-  const [whisperRecipient, setWhisperRecipient] = useState("");
-  const [whisperMessage, setWhisperMessage] = useState("");
+  const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,8 +164,13 @@ export function Welcome() {
     }
 
     try {
-      await connection.invoke("SendMessage", message);
+      if (selectedRecipient) {
+        await connection.invoke("SendWhisper", selectedRecipient, message);
+      } else {
+        await connection.invoke("SendMessage", message);
+      }
       setMessage("");
+      setSelectedRecipient(null);
       if (messageInputRef.current) {
         messageInputRef.current.focus();
       }
@@ -182,42 +186,12 @@ export function Welcome() {
     }
   };
 
-  const sendWhisper = async () => {
-    if (!isLoggedIn) {
-      setError("Please log in to send private messages.");
-      return;
-    }
+  const handleUsernameClick = (username: string) => {
+    setSelectedRecipient(username);
+  };
 
-    if (!connection) {
-      setError("Not connected to the chat hub.");
-      return;
-    }
-
-    if (!whisperRecipient.trim()) {
-      setError("Please enter a recipient username.");
-      return;
-    }
-
-    if (!whisperMessage.trim()) {
-      return;
-    }
-
-    const validationResult = emojiOnlySchema.safeParse(whisperMessage);
-    if (!validationResult.success) {
-      setError("Whisper message must consist of only emojis and whitespace.");
-      setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    setError(null);
-    try {
-      await connection.invoke("SendWhisper", whisperRecipient, whisperMessage);
-      setWhisperMessage("");
-      setWhisperRecipient("");
-    } catch (err) {
-      console.error("Error sending private message:", err);
-      setError("Failed to send whisper.");
-    }
+  const clearSelectedRecipient = () => {
+    setSelectedRecipient(null);
   };
 
   const formatMessage = (msg: Message): string => {
@@ -226,8 +200,8 @@ export function Welcome() {
     } else if (msg.senderUsername && msg.receiverUsername && !msg.receiverUserId) {
       return `${msg.senderUsername} ${msg.content.replace(msg.senderUsername, '').trim()}`;
     } else if (msg.senderUsername && msg.receiverUsername) {
-      const isToMe = msg.receiverUsername === whisperRecipient;
-      return isToMe ? `whispered to ${msg.receiverUsername}: ${msg.content}` : `${msg.senderUsername} whispered: ${msg.content}`;
+      const isToMe = msg.receiverUsername === loginUsername;
+      return isToMe ? `whispered to you: ${msg.content}` : `${msg.senderUsername} whispered: ${msg.content}`;
     }
     return msg.content;
   };
@@ -280,52 +254,43 @@ export function Welcome() {
             <ul className="space-y-2 overflow-y-auto h-[300px]">
               {messages.map((msg) => (
                 <li key={msg.id} className="text-gray-700 dark:text-gray-200">
+                  {msg.senderUsername && (
+                    <span
+                      onClick={() => handleUsernameClick(msg.senderUsername)}
+                      className="cursor-pointer font-semibold hover:underline"
+                    >
+                      {msg.senderUsername}:{" "}
+                    </span>
+                  )}
                   {formatMessage(msg)}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="flex items-center gap-4">
-            <input
-              type="text"
-              ref={messageInputRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyPress={handleEnterPress}
-              placeholder="Enter your message"
-              className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
-            />
-            <button
-              onClick={sendMessage}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Send
-            </button>
-          </div>
-          <div className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-            <h2>Whisper</h2>
+          <div className="flex flex-col gap-2">
+            {selectedRecipient && (
+              <div className="flex items-center">
+                <span>Whispering to: {selectedRecipient}</span>
+                <button onClick={clearSelectedRecipient} className="ml-2 text-gray-500 hover:text-gray-700">
+                  x
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-4">
               <input
                 type="text"
-                value={whisperRecipient}
-                onChange={(e) => setWhisperRecipient(e.target.value)}
-                placeholder="Recipient Username"
-                className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                value={whisperMessage}
-                onChange={(e) => setWhisperMessage(e.target.value)}
-                placeholder="Your private message"
+                ref={messageInputRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyPress={handleEnterPress}
+                placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
                 className="flex-1 p-2 border rounded dark:bg-gray-800 dark:text-gray-200"
               />
               <button
-                onClick={sendWhisper}
-                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+                onClick={sendMessage}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
-                Whisper
+                Send
               </button>
             </div>
           </div>

@@ -10,11 +10,16 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useAuth } from "~/context/AuthContext";
+import { jwtDecode, type JwtPayload } from 'jwt-decode';
 import type { IMessage } from "~/models/message";
 
 interface SelectedRecipient {
   userId: string;
   username: string;
+}
+
+interface CustomJwtPayload extends JwtPayload {
+  preferred_username: string;
 }
 
 const emojiOnlySchema = z.string().emoji();
@@ -24,6 +29,7 @@ export function Chat() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [message, setMessage] = useState("");
+  const [preferredUsername, setPreferredUsername] = useState("");
   const [selectedRecipient, setSelectedRecipient] = useState<SelectedRecipient | null>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,6 +48,15 @@ export function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    const jwtPayload = jwtDecode<CustomJwtPayload>(accessToken);
+    setPreferredUsername(jwtPayload.preferred_username);
+  }, [accessToken]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -176,21 +191,23 @@ export function Chat() {
       {accessToken && (
         <>
           <div className="relative w-full flex-1 overflow-hidden">
-            <Button
-              onClick={logout}
-              className="absolute top-4 right-4 z-10"
-              variant="outline"
-              size="sm"
-            >
-              Sign Out
-            </Button>
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-4">
+              {preferredUsername}
+              <Button
+                onClick={logout}
+                variant="outline"
+                size="sm"
+              >
+                Sign Out
+              </Button>
+            </div>
             <ScrollArea className="w-full h-full p-4" ref={scrollAreaRef}>
               <ul className="space-y-2">
                 {messages.map((msg) => (
                   <Message
                     key={msg.id}
                     msg={msg}
-                    loginUsername={accessToken?.split('.')[0]}
+                    loginUsername={preferredUsername}
                     onUsernameClick={(userId, username) => {
                         handleUsernameClick(userId, username);
                     }}

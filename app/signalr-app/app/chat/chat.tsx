@@ -91,7 +91,13 @@ export function Chat() {
         console.log("Connected to SignalR hub");
         setConnection(connect);
       })
-      .catch((err) => console.error("Error connecting to SignalR hub:", err));
+      .catch((err) => {
+        if (err && err.message && err.message.includes("401")) {
+          logout();
+        } else {
+          console.error("Error connecting to SignalR hub:", err)
+        }
+      });
 
     return () => {
       if (connection) {

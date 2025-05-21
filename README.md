@@ -26,7 +26,7 @@ dotnet run
 # App
 cd app/signalr-app
 npm install
-npm start
+npm run dev
 ```
 
 ## 📤 Dependecies

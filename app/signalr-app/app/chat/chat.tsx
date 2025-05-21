@@ -37,14 +37,12 @@ export function Chat() {
 
   const accessToken = getToken();
 
-  // Function to scroll to bottom of messages
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   };
 
-  // Effect to scroll to bottom whenever messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);

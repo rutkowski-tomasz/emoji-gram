@@ -7,17 +7,14 @@ import { z } from "zod";
 import Message from '@/components/Message';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useAuth } from "~/context/AuthContext";
+import type { IMessage } from "~/models/message";
 
-interface IMessage {
-  id: string;
-  content: string;
-  sender: string;
-  recipient?: string;
-  sentAtUtc: string;
+interface SelectedRecipient {
+  userId: string;
+  username: string;
 }
 
 const emojiOnlySchema = z.string().emoji();
@@ -27,7 +24,7 @@ export function Chat() {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [message, setMessage] = useState("");
-  const [selectedRecipient, setSelectedRecipient] = useState<string | null>(null);
+  const [selectedRecipient, setSelectedRecipient] = useState<SelectedRecipient | null>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -145,7 +142,7 @@ export function Chat() {
 
     try {
       if (selectedRecipient) {
-        await connection.invoke("SendWhisper", selectedRecipient, message);
+        await connection.invoke("SendWhisper", selectedRecipient.userId, selectedRecipient.username, message);
       } else {
         await connection.invoke("SendMessage", message);
       }
@@ -166,8 +163,8 @@ export function Chat() {
     }
   };
 
-  const handleUsernameClick = (username: string) => {
-    setSelectedRecipient(username);
+  const handleUsernameClick = (userId: string, username: string) => {
+    setSelectedRecipient({ userId, username });
   };
 
   const clearSelectedRecipient = () => {
@@ -194,7 +191,9 @@ export function Chat() {
                     key={msg.id}
                     msg={msg}
                     loginUsername={accessToken?.split('.')[0]}
-                    onUsernameClick={handleUsernameClick}
+                    onUsernameClick={(userId, username) => {
+                        handleUsernameClick(userId, username);
+                    }}
                   />
                 ))}
                 <div ref={messagesEndRef} /> {/* Empty div at the end to scroll to */}
@@ -205,7 +204,7 @@ export function Chat() {
             <div className="max-w-[500px] mx-auto space-y-2">
               {selectedRecipient && (
                 <div className="flex items-center">
-                  <span>Whispering to: {selectedRecipient}</span>
+                  <span>Whispering to: {selectedRecipient.username}</span>
                   <Button variant="secondary" size="sm" onClick={clearSelectedRecipient} className="ml-2">
                     x
                   </Button>
@@ -218,7 +217,7 @@ export function Chat() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   onKeyPress={handleEnterPress}
-                  placeholder={selectedRecipient ? `Whisper to ${selectedRecipient}` : "Enter your message"}
+                  placeholder={selectedRecipient ? `Whisper to ${selectedRecipient.username}` : "Enter your message"}
                 />
                 <Button onClick={sendMessage}>Send</Button>
               </div>

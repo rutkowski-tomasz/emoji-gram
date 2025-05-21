@@ -6,14 +6,14 @@ import { MessageType, type IMessage } from "~/models/message";
 interface MessageProps {
   msg: IMessage;
   loginUsername: string;
-  onUsernameClick: (username: string) => void;
+  onUsernameClick: (userId: string, username: string) => void;
 }
 
 export default function Message({ msg, loginUsername, onUsernameClick }: MessageProps) {
 
-  const buildUserLink = (username: string) =>(
+  const buildUserLink = (userId: string, username: string) =>(
     <span
-      onClick={() => onUsernameClick(username)}
+      onClick={() => onUsernameClick(userId, username)}
       className="cursor-pointer font-semibold hover:underline"
     >
       {username}
@@ -30,19 +30,19 @@ export default function Message({ msg, loginUsername, onUsernameClick }: Message
   };
 
   if (msg.type === MessageType.Connected) {
-    return buildMessage(<>{buildUserLink(msg.senderUsername!)} connected</>, true);
+    return buildMessage(<>{buildUserLink(msg.senderUserId, msg.senderUsername!)} connected {msg.id.slice(-4)}</>, true);
   }
   if (msg.type === MessageType.Disconnected) {
-    return buildMessage(<>{buildUserLink(msg.senderUsername!)} disconnected</>, true);
+    return buildMessage(<>{buildUserLink(msg.senderUserId, msg.senderUsername!)} disconnected {msg.id.slice(-4)}</>, true);
   }
   if (msg.type === MessageType.Message) {
-    return buildMessage(<>{buildUserLink(msg.senderUsername!)}: {msg.content}</>, false);
+    return buildMessage(<>{buildUserLink(msg.senderUserId, msg.senderUsername!)}: {msg.content}</>, false);
   }
   if (msg.type === MessageType.Whisper && msg.receiverUsername === loginUsername) {
-    return buildMessage(<>{buildUserLink(msg.senderUsername!)} whispered to you: {msg.content}</>, false);
+    return buildMessage(<>{buildUserLink(msg.senderUserId, msg.senderUsername!)} whispered to you: {msg.content}</>, false);
   }
   if (msg.type === MessageType.Whisper) {
-    return buildMessage(<>you whispered to {buildUserLink(msg.senderUsername!)}: {msg.content}</>, false);
+    return buildMessage(<>you whispered to {buildUserLink(msg.receiverUserId!, msg.receiverUsername!)}: {msg.content}</>, false);
   }
   return <></>;
 }

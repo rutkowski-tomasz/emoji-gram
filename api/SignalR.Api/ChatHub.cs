@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
@@ -8,18 +9,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SignalR.Api;
 
+[Authorize]
 public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<IChatHubClient>
 {
-    private static readonly ConcurrentDictionary<Guid, HashSet<string>> UserConnections = new();
-    private static readonly ConcurrentDictionary<string, Guid> UsernameToId = new();
-
     public override async Task OnConnectedAsync()
     {
         var senderUserId = Context.User!.GetUserId();
         var senderUsername = Context.User!.GetUsername();
 
-        UserConnections.GetOrAdd(senderUserId, []).Add(Context.ConnectionId);
-        UsernameToId.TryAdd(senderUsername, senderUserId);
         logger.LogInformation("{SenderUsername} ({UserId}) connected", senderUsername, senderUserId);
 
         var joinMessage = new Message
@@ -27,13 +24,16 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             Id = Guid.NewGuid(),
             Content = string.Empty,
             SentAtUtc = DateTime.UtcNow,
+            SenderUserId = senderUserId,
             SenderUsername = senderUsername,
             Type = MessageType.Connected
         };
         dbContext.Messages.Add(joinMessage);
-        await dbContext.SaveChangesAsync();
 
-        await Clients.All.ReceiveMessage(joinMessage);
+        await Task.WhenAll(
+            dbContext.SaveChangesAsync(),
+            Clients.All.ReceiveMessage(joinMessage)
+        );
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -41,15 +41,6 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         var senderUserId = Context.User!.GetUserId();
         var senderUsername = Context.User!.GetUsername();
 
-        if (UserConnections.TryGetValue(senderUserId, out var connectionsIds))
-        {
-            connectionsIds.Remove(Context.ConnectionId);
-            if (connectionsIds.Count == 0)
-            {
-                UserConnections.TryRemove(senderUserId, out _);
-            }
-        }
-        UsernameToId.TryRemove(senderUsername, out _);
         logger.LogInformation("{SenderUsername} ({SenderUserId}) disconnected", senderUsername, senderUserId);
 
         var disconnectMessage = new Message
@@ -61,9 +52,11 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             Type = MessageType.Disconnected
         };
         dbContext.Messages.Add(disconnectMessage);
-        await dbContext.SaveChangesAsync();
 
-        await Clients.All.ReceiveMessage(disconnectMessage);
+        await Task.WhenAll(
+            dbContext.SaveChangesAsync(),
+            Clients.All.ReceiveMessage(disconnectMessage)
+        );
     }
 
     public async Task SendMessage(string message)
@@ -87,12 +80,14 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
             Type = MessageType.Message
         };
         dbContext.Messages.Add(newMessage);
-        await dbContext.SaveChangesAsync();
 
-        await Clients.All.ReceiveMessage(newMessage);
+        await Task.WhenAll(
+            dbContext.SaveChangesAsync(),
+            Clients.All.ReceiveMessage(newMessage)
+        );
     }
 
-    public async Task SendWhisper(string receiverUsername, string message)
+    public async Task SendWhisper(Guid receiverUserId, string receiverUsername, string message)
     {
         if (!EmojiValidator.IsValidEmojiMessage(message))
         {
@@ -102,38 +97,26 @@ public class ChatHub(ILogger<ChatHub> logger, ApiDbContext dbContext) : Hub<ICha
         var senderUserId = Context.User!.GetUserId();
         var senderUsername = Context.User!.GetUsername();
 
-        if (UsernameToId.TryGetValue(receiverUsername, out var receiverUserId))
+        logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUsername} ({ReceiverUserId}): {Message}", senderUsername, senderUserId, receiverUsername, receiverUserId, message);
+
+        var whisperMessage = new Message
         {
-            logger.LogInformation("{SenderUsername} ({SenderUserId}) whispers to {ReceiverUsername} ({ReceiverUserId}): {Message}", senderUsername, senderUserId, receiverUsername, receiverUserId, message);
+            Id = Guid.NewGuid(),
+            SenderUserId = senderUserId,
+            SenderUsername = senderUsername,
+            ReceiverUserId = receiverUserId,
+            ReceiverUsername = receiverUsername,
+            Content = message,
+            SentAtUtc = DateTime.UtcNow,
+            Type = MessageType.Whisper
+        };
+        dbContext.Messages.Add(whisperMessage);
 
-            var whisperMessage = new Message
-            {
-                Id = Guid.NewGuid(),
-                SenderUserId = senderUserId,
-                SenderUsername = senderUsername,
-                ReceiverUserId = receiverUserId,
-                ReceiverUsername = receiverUsername,
-                Content = message,
-                SentAtUtc = DateTime.UtcNow,
-                Type = MessageType.Whisper
-            };
-            dbContext.Messages.Add(whisperMessage);
-            await dbContext.SaveChangesAsync();
-
-            if (UserConnections.TryGetValue(receiverUserId, out var connectionsIds))
-            {
-                var sendTasks = connectionsIds
-                    .Select(connectionId => Clients.Client(connectionId).ReceiveMessage(whisperMessage));
-
-                await Task.WhenAll(sendTasks);
-            }
-
-            await Clients.Caller.ReceiveMessage(whisperMessage);
-        }
-        else
-        {
-            await Clients.Caller.ReceiveError($"User with username '{receiverUsername}' not found.");
-        }
+        await Task.WhenAll(
+            dbContext.SaveChangesAsync(),
+            Clients.User(receiverUserId.ToString()).ReceiveMessage(whisperMessage),
+            Clients.Caller.ReceiveMessage(whisperMessage)
+        );
     }
 }
 

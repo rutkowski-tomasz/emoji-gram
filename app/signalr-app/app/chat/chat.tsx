@@ -65,14 +65,16 @@ export function Chat() {
       return;
     }
 
-    const connect = new signalR.HubConnectionBuilder()
+    const newConnection = new signalR.HubConnectionBuilder()
       .withUrl("http://localhost:8001/hub", {
         accessTokenFactory: () => accessToken,
       })
       .withAutomaticReconnect()
       .build();
 
-    connect.on("ReceiveMessage", (receivedMessage: IMessage) => {
+    setConnection(newConnection);
+
+    newConnection.on("ReceiveMessage", (receivedMessage: IMessage) => {
       setMessages((prevMessages) => {
         if (!prevMessages.some((msg) => msg.id === receivedMessage.id)) {
           return [...prevMessages, receivedMessage];
@@ -81,16 +83,12 @@ export function Chat() {
       });
     });
 
-    connect.on("ReceiveError", (errorMessage: string) => {
+    newConnection.on("ReceiveError", (errorMessage: string) => {
       toast.error(errorMessage);
     });
 
-    connect
+    newConnection
       .start()
-      .then(() => {
-        console.log("Connected to SignalR hub");
-        setConnection(connect);
-      })
       .catch((err) => {
         if (err && err.message && err.message.includes("401")) {
           logout();
@@ -100,8 +98,8 @@ export function Chat() {
       });
 
     return () => {
-      if (connection) {
-        connection.stop();
+      if (newConnection) {
+        newConnection.stop();
       }
     };
   }, [accessToken]);

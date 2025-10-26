@@ -1,4 +1,4 @@
-# 😜 EmojiGram: Real-time Emoji Messaging
+# EmojiGram: Real-time Emoji Messaging
 
 Portfolio project for learning SignalR and Keycloak.
 
